@@ -5,6 +5,10 @@
 ![CPU Impact](https://img.shields.io/badge/oyun%20etkisi-%250.1%20CPU%20(Sıfır%20FPS%20Kayıp)-00e676?style=for-the-badge&logo=amd)
 ![License](https://img.shields.io/badge/lisans-MIT-9d4edd?style=for-the-badge)
 
+<p align="center">
+  <img src="yeni_hali.png" alt="AIOps System Radar v4.1 Arayüzü" width="100%">
+</p>
+
 **AIOps System Radar**, bilgisayarınızın donanım performansını saniyeler içinde analiz eden, oyunlara **%0 FPS** ve **%0.1 CPU** etki güvencesiyle eşlik eden, tek tıkla **RAM temizliği** yapıp **Yapay Zeka (AI) arıza ve darboğaz teşhisi** sunan yeni nesil otonom bir masaüstü koruma ve sistem takip süitidir!
 
 Kuruluma gerek duyulmaksızın taşınabilir (**Portable .EXE**) olarak çalışır. Harici bir web tarayıcısına gereksinim duymaz; yerleşik **Windows WebView2** penceresinde siber-oyuncu esintili büyüleyici arayüzüyle açılır ve arka planda sağ alt saatin yanındaki sistem tepsisine (System Tray) oturur.
