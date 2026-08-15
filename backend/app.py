@@ -179,6 +179,82 @@ def toggle_autoram_endpoint():
         )
     return jsonify({'enabled': monitor_engine.auto_ram_cleaner})
 
+@app.route('/api/toggle-cpu-turbo', methods=['POST'])
+def toggle_cpu_turbo():
+    data = request.get_json() or {}
+    enabled = data.get('enabled')
+    if enabled is not None:
+        monitor_engine.cpu_optimizer_enabled = bool(enabled)
+        try:
+            from backend.cpu_optimizer import cpu_optimizer
+            if cpu_optimizer: cpu_optimizer.toggle(bool(enabled))
+        except ImportError:
+            pass
+        status_txt = "Açık (Oyunlarda Yüksek Öncelik)" if enabled else "Kapalı"
+        storage_engine.log_anomaly("INFO", "CPU Turbo Optimize Edici", f"Durum: {status_txt}", "Oyun anında diğer uygulamaları bekleme konumuna (Idle) alır.")
+    return jsonify({'enabled': monitor_engine.cpu_optimizer_enabled})
+
+@app.route('/api/toggle-ping-optimizer', methods=['POST'])
+def toggle_ping_optimizer():
+    data = request.get_json() or {}
+    enabled = data.get('enabled')
+    if enabled is not None:
+        monitor_engine.ping_optimizer_enabled = bool(enabled)
+        try:
+            from backend.ping_optimizer import ping_optimizer
+            if ping_optimizer: ping_optimizer.toggle(bool(enabled))
+        except ImportError:
+            pass
+        status_txt = "Açık (Ağ Dondurma ve DNS Temizliği)" if enabled else "Kapalı"
+        storage_engine.log_anomaly("INFO", "Ağ (Ping) Optimizatörü", f"Durum: {status_txt}", "Oyun anında arka plan indirmelerini dondurur ve DNS sıfırlar.")
+    return jsonify({'enabled': monitor_engine.ping_optimizer_enabled})
+
+@app.route('/api/vram-scan', methods=['GET'])
+def vram_scan():
+    heavy_apps = {"chrome.exe", "msedge.exe", "discord.exe", "spotify.exe", "brave.exe", "opera.exe", "firefox.exe"}
+    found_apps = []
+    import psutil
+    for proc in psutil.process_iter(['pid', 'name', 'memory_info']):
+        try:
+            p_name = proc.info['name']
+            if p_name and p_name.lower() in heavy_apps:
+                found_apps.append({
+                    "pid": proc.info['pid'],
+                    "name": p_name,
+                    "ram_mb": round(proc.info['memory_info'].rss / (1024*1024), 1)
+                })
+        except:
+            continue
+            
+    grouped = {}
+    for app_item in found_apps:
+        name = app_item['name']
+        if name not in grouped:
+            grouped[name] = {"name": name, "pids": [], "total_ram_mb": 0}
+        grouped[name]["pids"].append(app_item['pid'])
+        grouped[name]["total_ram_mb"] += app_item["ram_mb"]
+        
+    res_list = list(grouped.values())
+    res_list.sort(key=lambda x: x["total_ram_mb"], reverse=True)
+    return jsonify({"vram_hogs": res_list})
+
+@app.route('/api/vram-clean', methods=['POST'])
+def vram_clean():
+    data = request.get_json() or {}
+    apps_to_close = data.get('apps', [])
+    import psutil
+    closed_count = 0
+    for proc in psutil.process_iter(['pid', 'name']):
+        try:
+            if proc.info['name'] in apps_to_close:
+                proc.kill()
+                closed_count += 1
+        except:
+            continue
+            
+    storage_engine.log_anomaly("INFO", "VRAM Süpürgesi Çalıştı", f"{closed_count} adet VRAM şişiren donanım-hızlandırmalı süreç sonlandırıldı.", "Ekran kartı belleğiniz rahatlatıldı.")
+    return jsonify({"status": "success", "closed_processes": closed_count})
+
 if __name__ == '__main__':
     print("[System] Monitoring Engine Started (Eco/Burst Ready)...")
     app.run(debug=False, host='0.0.0.0', port=5000, threaded=True)

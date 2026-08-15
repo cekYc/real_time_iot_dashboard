@@ -29,7 +29,24 @@ def run_flask_server():
     except Exception as e:
         print(f"[Flask] Sunucu başlatım hatası: {e}")
 
+import ctypes
+
+def is_admin():
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin()
+    except:
+        return False
+
 if __name__ == '__main__':
+    # v5.0 Admin Yükseltmesi (UAC Check)
+    if not is_admin():
+        print("[!] Yönetici izni (Admin Rights) eksik! v5.0 Game Booster özellikleri için izin isteniyor (UAC)...")
+        try:
+            ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)
+        except Exception as e:
+            print(f"[!] UAC Reddedildi veya hata: {e}")
+        sys.exit()
+        
     print("="*65)
     print(" [*] GERCEK Zamanli AKILLI SISTEM MONITORU VE ANOMALI RADARI [*]")
     print("     (Oyun Dostu Eco/Burst Modu - Sifir Veritabanı Kurulumu)")

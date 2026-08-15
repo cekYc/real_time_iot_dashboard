@@ -7,6 +7,8 @@ let sortColumn = "memory_mb";
 let sortDirection = "desc";
 let autopilotLock = true;
 let autoRamCleaner = false;
+let cpuTurbo = false;
+let pingOptimizer = false;
 let lastAnomalyHash = "";
 let lastGameHash = "";
 
@@ -206,6 +208,116 @@ function setupEventListeners() {
         });
     }
 
+    // CPU Turbo Switch
+    const btnCpu = document.getElementById("btnCpuTurboToggle");
+    if (btnCpu) {
+        btnCpu.addEventListener("click", () => {
+            cpuTurbo = !cpuTurbo;
+            fetch("/api/toggle-cpu-turbo", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ enabled: cpuTurbo })
+            }).then(r => r.json()).then(d => {
+                cpuTurbo = d.enabled;
+                const lbl = document.getElementById("lblCpuTurboStatus");
+                if (lbl) {
+                    lbl.innerText = cpuTurbo ? "AÇIK" : "KAPALI";
+                    lbl.style.color = cpuTurbo ? "#00e676" : "#ff5252";
+                }
+                showToast("⚙️ CPU Turbo", cpuTurbo ? "Oyun açıldığında işlemci gücü oyuna odaklanacak." : "CPU Optimizasyonu kapalı.");
+            });
+        });
+    }
+
+    // Ping Optimizer Switch
+    const btnPing = document.getElementById("btnPingOptToggle");
+    if (btnPing) {
+        btnPing.addEventListener("click", () => {
+            pingOptimizer = !pingOptimizer;
+            fetch("/api/toggle-ping-optimizer", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ enabled: pingOptimizer })
+            }).then(r => r.json()).then(d => {
+                pingOptimizer = d.enabled;
+                const lbl = document.getElementById("lblPingOptStatus");
+                if (lbl) {
+                    lbl.innerText = pingOptimizer ? "AÇIK" : "KAPALI";
+                    lbl.style.color = pingOptimizer ? "#00e676" : "#ff5252";
+                }
+                showToast("🌐 Ping (Ağ) Optimizatörü", pingOptimizer ? "Oyun açıldığında ağ önbelleği temizlenip gereksiz indirmeler durdurulacak." : "Ağ Optimizasyonu kapalı.");
+            });
+        });
+    }
+
+    // VRAM Modal Events
+    const btnVram = document.getElementById("btnVramClean");
+    const vramModal = document.getElementById("vramModal");
+    const btnVramClose = document.getElementById("btnVramCloseModal");
+    const btnVramExec = document.getElementById("btnVramExecute");
+    
+    if (btnVram) {
+        btnVram.addEventListener("click", () => {
+            vramModal.style.display = "flex";
+            const vbody = document.getElementById("vramModalBody");
+            vbody.innerHTML = `<div style="text-align: center; padding: 40px; color: #ff9900; font-size: 1.2rem;">🔍 VRAM tüketen arka plan uygulamaları aranıyor...</div>`;
+            if(btnVramExec) btnVramExec.style.display = "none";
+            
+            fetch("/api/vram-scan")
+                .then(r => r.json())
+                .then(d => {
+                    if (d.vram_hogs && d.vram_hogs.length > 0) {
+                        let html = '<div style="margin-bottom:15px; color:#fff;">Aşağıdaki donanım-hızlandırmalı uygulamalar ekran kartınızın VRAM\'ini gereksiz yere işgal ediyor. Kapatmak istediklerinizi seçin:</div>';
+                        d.vram_hogs.forEach((app, idx) => {
+                            html += `
+                                <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.3); padding:10px 15px; margin-bottom:8px; border-radius:8px; border:1px solid rgba(255,153,0,0.2);">
+                                    <div>
+                                        <input type="checkbox" id="chk_vram_${idx}" value="${app.name}" checked style="margin-right:10px; accent-color:#ff9900; transform:scale(1.2);">
+                                        <label for="chk_vram_${idx}" style="color:#fff; font-weight:bold; cursor:pointer;">${app.name}</label>
+                                    </div>
+                                    <div style="color:#ff9900; font-weight:bold;">~${app.total_ram_mb} MB Sistem/GPU Ram</div>
+                                </div>
+                            `;
+                        });
+                        vbody.innerHTML = html;
+                        if(btnVramExec) btnVramExec.style.display = "inline-block";
+                    } else {
+                        vbody.innerHTML = `<div style="text-align: center; padding: 40px; color: #00e676; font-size: 1.2rem;">✨ VRAM'inizi şişiren gereksiz bir uygulama bulunamadı!</div>`;
+                    }
+                });
+        });
+    }
+    
+    if (btnVramClose) {
+        btnVramClose.addEventListener("click", () => { vramModal.style.display = "none"; });
+    }
+    
+    if (btnVramExec) {
+        btnVramExec.addEventListener("click", () => {
+            const checks = document.querySelectorAll('input[id^="chk_vram_"]:checked');
+            const appsToClose = Array.from(checks).map(c => c.value);
+            if (appsToClose.length === 0) {
+                showToast("⚠️ Seçim Yok", "Kapatılacak hiçbir uygulama seçmediniz.");
+                return;
+            }
+            
+            btnVramExec.innerText = "Kapatılıyor...";
+            btnVramExec.disabled = true;
+            
+            fetch("/api/vram-clean", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ apps: appsToClose })
+            }).then(r => r.json()).then(d => {
+                vramModal.style.display = "none";
+                btnVramExec.innerText = "Seçili Olanları Kapat (VRAM Boşalt)";
+                btnVramExec.disabled = false;
+                showToast("🧹 VRAM Süpürgesi", `${d.closed_processes} adet donanım hızlandırmalı sekme/pencere sonlandırıldı!`);
+                fetchData();
+            });
+        });
+    }
+
     // Theme Selector Handler
     const themeSel = document.getElementById("themeSelector");
     if (themeSel) {
@@ -287,6 +399,22 @@ function updateDashboard(data) {
             if (lRam) {
                 lRam.innerText = autoRamCleaner ? "AÇIK (%82)" : "KAPALI";
                 lRam.style.color = autoRamCleaner ? "#00e676" : "#ff5252";
+            }
+        }
+        if (live.autopilot.cpu_turbo !== undefined) {
+            cpuTurbo = live.autopilot.cpu_turbo;
+            const lCpu = document.getElementById("lblCpuTurboStatus");
+            if (lCpu) {
+                lCpu.innerText = cpuTurbo ? "AÇIK" : "KAPALI";
+                lCpu.style.color = cpuTurbo ? "#00e676" : "#ff5252";
+            }
+        }
+        if (live.autopilot.ping_optimizer !== undefined) {
+            pingOptimizer = live.autopilot.ping_optimizer;
+            const lPing = document.getElementById("lblPingOptStatus");
+            if (lPing) {
+                lPing.innerText = pingOptimizer ? "AÇIK" : "KAPALI";
+                lPing.style.color = pingOptimizer ? "#00e676" : "#ff5252";
             }
         }
     }

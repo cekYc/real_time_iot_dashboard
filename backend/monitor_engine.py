@@ -6,6 +6,13 @@ import threading
 from datetime import datetime, timedelta
 from backend.local_storage import storage_engine
 
+try:
+    from backend.cpu_optimizer import cpu_optimizer
+    from backend.ping_optimizer import ping_optimizer
+except ImportError:
+    cpu_optimizer = None
+    ping_optimizer = None
+
 HAS_GPUTIL = False
 HAS_PYNVML = False
 
@@ -83,6 +90,10 @@ class SystemMonitorEngine:
         self.tray_service_ref = None
         self.auto_ram_cleaner = False
         self.last_auto_clean_time = 0.0
+        
+        # v5.0 Modülleri (Backend'den tetiklenebilir)
+        self.cpu_optimizer_enabled = False
+        self.ping_optimizer_enabled = False
 
         # Cache static OS & CPU info so we don't recalculate repeatedly
         self.static_info = self._get_static_sys_info()
@@ -502,6 +513,13 @@ class SystemMonitorEngine:
             self.last_game_seen_time = now
             if self.mode == "REALTIME" and self.autopilot_enabled:
                 self.set_mode("ECO_GAME")
+                
+                # v5.0 Optimizers Start
+                if self.cpu_optimizer_enabled and cpu_optimizer:
+                    cpu_optimizer.optimize_for_game(detected_game_now)
+                if self.ping_optimizer_enabled and ping_optimizer:
+                    ping_optimizer.optimize_for_game()
+                    
                 storage_engine.log_anomaly(
                     "INFO", 
                     "Akıllı Oyun Otopilotu Devrede!", 
@@ -513,6 +531,13 @@ class SystemMonitorEngine:
         elif self.active_game and (now - self.last_game_seen_time) > 8.0:
             old_game = self.active_game
             self.active_game = None
+            
+            # v5.0 Optimizers Restore
+            if cpu_optimizer:
+                cpu_optimizer.restore_all()
+            if ping_optimizer:
+                ping_optimizer.restore_all()
+                
             if self.mode == "ECO_GAME" and self.autopilot_enabled:
                 self.set_mode("REALTIME")
             duration_sec = max(5, int(now - getattr(self, "game_session_start", now) - 8.0))
@@ -541,6 +566,8 @@ class SystemMonitorEngine:
         autopilot_info = {
             "enabled": self.autopilot_enabled,
             "auto_ram_cleaner": self.auto_ram_cleaner,
+            "cpu_turbo": self.cpu_optimizer_enabled,
+            "ping_optimizer": self.ping_optimizer_enabled,
             "is_gaming": float(now - self.last_game_seen_time) <= 8.0 if self.active_game else False,
             "active_game": self.active_game or "Yok",
             "status": f"Aktif ({self.active_game})" if self.active_game else "Gözetlemede (Hazır)"
